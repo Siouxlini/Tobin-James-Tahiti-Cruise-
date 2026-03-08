@@ -173,6 +173,32 @@
       }
     }
 
+    // Load state from URL if present
+    function loadStateFromURL() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const sharedData = params.get('share');
+        if (sharedData) {
+          const decoded = JSON.parse(atob(sharedData));
+          if (decoded.booked) state.booked = new Set(decoded.booked);
+          if (decoded.favorites) state.favorites = new Set(decoded.favorites);
+          if (decoded.priceMultiplier) state.priceMultiplier = decoded.priceMultiplier;
+          // Save to localStorage so it persists
+          saveState();
+          // Show confirmation
+          setTimeout(() => {
+            alert(`✅ Imported selections!\n\n${state.booked.size} booked excursions\n${state.favorites.size} favorites\n\nThese have been saved to your device.`);
+          }, 500);
+          // Clean up URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+          return true;
+        }
+      } catch (e) {
+        console.log('Could not load state from URL:', e);
+      }
+      return false;
+    }
+
     // Save state to localStorage
     function saveState() {
       try {
@@ -188,6 +214,16 @@
       }
     }
 
+    // Generate shareable data string
+    function generateShareData() {
+      const shareObj = {
+        booked: [...state.booked],
+        favorites: [...state.favorites],
+        priceMultiplier: state.priceMultiplier
+      };
+      return btoa(JSON.stringify(shareObj));
+    }
+
     // Get port code from excursion code (first 5 characters)
     function getPortCode(excCode) {
       return excCode.substring(0, 5);
@@ -199,8 +235,10 @@
       return `https://www.pgcruises.com/shore-excursions?cruise_link_embkport=${portCode}`;
     }
 
-    // Load state on startup
-    loadState();
+    // Load state on startup - check URL first, then localStorage
+    if (!loadStateFromURL()) {
+      loadState();
+    }
 
     // Helper functions
     function parseDuration(dur) {
@@ -333,7 +371,9 @@
       checkCircleFilled: `<svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"></path></svg>`,
       externalLink: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>`,
       users: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>`,
-      download: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>`
+      download: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>`,
+      share: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>`,
+      copy: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>`
     };
 
     // Render function
@@ -378,6 +418,10 @@
             <button onclick="exportItinerary()" class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg shadow hover:shadow-md transition font-medium">
               ${icons.download}
               Export Itinerary
+            </button>
+            <button onclick="showShareModal()" class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg shadow hover:shadow-md transition font-medium">
+              ${icons.share}
+              Share Selections
             </button>
             <button onclick="toggleFilters()" class="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow hover:shadow-md transition">
               ${icons.filter}
@@ -882,6 +926,157 @@
       state.priceMultiplier = value;
       saveState();
       render();
+    }
+
+    function showShareModal() {
+      const shareData = generateShareData();
+      // For local file, we'll provide instructions
+      const isLocalFile = window.location.protocol === 'file:';
+      
+      const modal = document.createElement('div');
+      modal.id = 'share-modal';
+      modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50';
+      modal.onclick = (e) => { if (e.target === modal) closeShareModal(); };
+      
+      modal.innerHTML = `
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold">Share Your Selections</h2>
+            <button onclick="closeShareModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+          </div>
+          
+          <div class="mb-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl">
+            <div class="text-sm text-gray-600 mb-2">You're sharing:</div>
+            <div class="flex gap-4">
+              <div class="text-center">
+                <div class="text-2xl font-bold text-green-600">${state.booked.size}</div>
+                <div class="text-xs text-gray-500">Booked</div>
+              </div>
+              <div class="text-center">
+                <div class="text-2xl font-bold text-pink-600">${state.favorites.size}</div>
+                <div class="text-xs text-gray-500">Favorites</div>
+              </div>
+              <div class="text-center">
+                <div class="text-2xl font-bold text-blue-600">${state.priceMultiplier}</div>
+                <div class="text-xs text-gray-500">Travelers</div>
+              </div>
+            </div>
+          </div>
+
+          ${isLocalFile ? `
+          <div class="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+            <div class="font-medium text-amber-800 mb-2">📁 Sharing from a local file</div>
+            <div class="text-sm text-amber-700">
+              Since you're using a downloaded HTML file, share this <strong>Share Code</strong> with your wife. 
+              She can paste it using the "Import" button below.
+            </div>
+          </div>
+          
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Share Code</label>
+            <div class="flex gap-2">
+              <input type="text" id="share-code" value="${shareData}" readonly 
+                class="flex-1 px-3 py-2 border rounded-lg bg-gray-50 text-sm font-mono" />
+              <button onclick="copyShareCode()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center gap-2">
+                ${icons.copy} Copy
+              </button>
+            </div>
+          </div>
+
+          <div class="border-t pt-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Import Share Code</label>
+            <div class="flex gap-2">
+              <input type="text" id="import-code" placeholder="Paste share code here..." 
+                class="flex-1 px-3 py-2 border rounded-lg text-sm" />
+              <button onclick="importShareCode()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                Import
+              </button>
+            </div>
+          </div>
+          ` : `
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Shareable Link</label>
+            <div class="flex gap-2">
+              <input type="text" id="share-link" value="${window.location.origin}${window.location.pathname}?share=${shareData}" readonly 
+                class="flex-1 px-3 py-2 border rounded-lg bg-gray-50 text-sm" />
+              <button onclick="copyShareLink()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center gap-2">
+                ${icons.copy} Copy
+              </button>
+            </div>
+          </div>
+          `}
+          
+          <div class="mt-4 text-center">
+            <button onclick="closeShareModal()" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
+              Done
+            </button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+    }
+
+    function closeShareModal() {
+      const modal = document.getElementById('share-modal');
+      if (modal) modal.remove();
+    }
+
+    function copyShareCode() {
+      const input = document.getElementById('share-code');
+      input.select();
+      document.execCommand('copy');
+      
+      const btn = event.target.closest('button');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '✓ Copied!';
+      btn.classList.remove('bg-purple-600', 'hover:bg-purple-700');
+      btn.classList.add('bg-green-600');
+      setTimeout(() => {
+        btn.innerHTML = originalText;
+        btn.classList.remove('bg-green-600');
+        btn.classList.add('bg-purple-600', 'hover:bg-purple-700');
+      }, 2000);
+    }
+
+    function copyShareLink() {
+      const input = document.getElementById('share-link');
+      input.select();
+      document.execCommand('copy');
+      
+      const btn = event.target.closest('button');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '✓ Copied!';
+      btn.classList.remove('bg-purple-600', 'hover:bg-purple-700');
+      btn.classList.add('bg-green-600');
+      setTimeout(() => {
+        btn.innerHTML = originalText;
+        btn.classList.remove('bg-green-600');
+        btn.classList.add('bg-purple-600', 'hover:bg-purple-700');
+      }, 2000);
+    }
+
+    function importShareCode() {
+      const input = document.getElementById('import-code');
+      const code = input.value.trim();
+      
+      if (!code) {
+        alert('Please paste a share code first.');
+        return;
+      }
+      
+      try {
+        const decoded = JSON.parse(atob(code));
+        if (decoded.booked) state.booked = new Set(decoded.booked);
+        if (decoded.favorites) state.favorites = new Set(decoded.favorites);
+        if (decoded.priceMultiplier) state.priceMultiplier = decoded.priceMultiplier;
+        saveState();
+        closeShareModal();
+        render();
+        alert(`✅ Imported successfully!\n\n${state.booked.size} booked excursions\n${state.favorites.size} favorites`);
+      } catch (e) {
+        alert('❌ Invalid share code. Please check and try again.');
+      }
     }
 
     function exportItinerary() {
