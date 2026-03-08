@@ -153,7 +153,8 @@
       showOnlyFavorites: false,
       showOnlyBooked: false,
       showValueAnalysis: false,
-      showDuplicateAnalysis: false
+      showDuplicateAnalysis: false,
+      priceMultiplier: 1
     };
 
     // Load saved state from localStorage
@@ -165,6 +166,7 @@
           if (parsed.hiddenIds) state.hiddenIds = new Set(parsed.hiddenIds);
           if (parsed.favorites) state.favorites = new Set(parsed.favorites);
           if (parsed.booked) state.booked = new Set(parsed.booked);
+          if (parsed.priceMultiplier) state.priceMultiplier = parsed.priceMultiplier;
         }
       } catch (e) {
         console.log('Could not load saved state:', e);
@@ -177,12 +179,24 @@
         const toSave = {
           hiddenIds: [...state.hiddenIds],
           favorites: [...state.favorites],
-          booked: [...state.booked]
+          booked: [...state.booked],
+          priceMultiplier: state.priceMultiplier
         };
         localStorage.setItem('excursionPlannerState', JSON.stringify(toSave));
       } catch (e) {
         console.log('Could not save state:', e);
       }
+    }
+
+    // Get port code from excursion code (first 5 characters)
+    function getPortCode(excCode) {
+      return excCode.substring(0, 5);
+    }
+
+    // Get excursion link
+    function getExcursionLink(excCode) {
+      const portCode = getPortCode(excCode);
+      return `https://www.pgcruises.com/shore-excursions?cruise_link_embkport=${portCode}`;
     }
 
     // Load state on startup
@@ -316,7 +330,10 @@
       alertCircle: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`,
       check: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`,
       checkCircle: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
-      checkCircleFilled: `<svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"></path></svg>`
+      checkCircleFilled: `<svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"></path></svg>`,
+      externalLink: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>`,
+      users: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>`,
+      download: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>`
     };
 
     // Render function
@@ -338,11 +355,30 @@
             <span class="bg-white/20 px-3 py-1 rounded-full">${state.favorites.size} favorites</span>
             <span class="bg-green-500/30 px-3 py-1 rounded-full">${state.booked.size} booked</span>
           </div>
+          <div class="flex items-center gap-3 mt-4">
+            <span class="text-blue-100 flex items-center gap-1">${icons.users} Travelers:</span>
+            <button 
+              onclick="setMultiplier(1)" 
+              class="px-3 py-1 rounded-full text-sm font-medium transition ${state.priceMultiplier === 1 ? 'bg-white text-blue-600' : 'bg-white/20 text-white hover:bg-white/30'}"
+            >
+              1 person
+            </button>
+            <button 
+              onclick="setMultiplier(2)" 
+              class="px-3 py-1 rounded-full text-sm font-medium transition ${state.priceMultiplier === 2 ? 'bg-white text-blue-600' : 'bg-white/20 text-white hover:bg-white/30'}"
+            >
+              2 people
+            </button>
+          </div>
         </div>
 
         <div class="p-4 max-w-7xl mx-auto">
           <!-- Quick Actions -->
           <div class="flex flex-wrap gap-2 mb-4">
+            <button onclick="exportItinerary()" class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg shadow hover:shadow-md transition font-medium">
+              ${icons.download}
+              Export Itinerary
+            </button>
             <button onclick="toggleFilters()" class="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow hover:shadow-md transition">
               ${icons.filter}
               ${state.showFilters ? "Hide Filters" : "Show Filters"}
@@ -608,7 +644,10 @@
                   <!-- Main Info -->
                   <div class="flex-1">
                     <div class="flex items-center gap-2 mb-1 flex-wrap">
-                      <span class="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded">${exc.code}</span>
+                      <a href="${getExcursionLink(exc.code)}" target="_blank" class="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded hover:bg-blue-100 hover:text-blue-700 flex items-center gap-1">
+                        ${exc.code}
+                        ${icons.externalLink}
+                      </a>
                       <span class="text-xs text-gray-500">${exc.date}</span>
                       <span class="text-xs text-blue-600 flex items-center gap-1">
                         ${icons.mapPin}
@@ -632,15 +671,16 @@
                   <!-- Price & Duration -->
                   <div class="text-right">
                     <div class="text-2xl font-bold text-green-600">
-                      $${exc.price}
-                      ${exc.perUnit ? `<span class="text-xs text-gray-500 block">per ${exc.unitType}</span>` : ''}
+                      $${exc.perUnit ? exc.price : exc.price * state.priceMultiplier}
+                      ${exc.perUnit ? `<span class="text-xs text-gray-500 block">per ${exc.unitType}</span>` : 
+                        (state.priceMultiplier > 1 ? `<span class="text-xs text-gray-500 block">($${exc.price} × ${state.priceMultiplier})</span>` : '')}
                     </div>
                     <div class="flex items-center gap-1 text-gray-500 text-sm justify-end mt-1">
                       ${icons.clock}
                       ${exc.duration}
                     </div>
                     <div class="text-xs text-gray-400 mt-1">
-                      $${calculateValueScore(exc).toFixed(0)}/hr
+                      $${calculateValueScore(exc).toFixed(0)}/hr${state.priceMultiplier > 1 && !exc.perUnit ? ' pp' : ''}
                     </div>
                   </div>
 
@@ -773,9 +813,9 @@
             ${state.booked.size > 0 ? `
             <div class="mt-4 pt-4 border-t">
               <div class="flex items-center justify-between">
-                <span class="font-bold text-green-700">Booked Excursions Total:</span>
+                <span class="font-bold text-green-700">Booked Excursions Total${state.priceMultiplier > 1 ? ` (${state.priceMultiplier} people)` : ''}:</span>
                 <span class="text-2xl font-bold text-green-600">
-                  $${excursionsData.filter(e => state.booked.has(e.id)).reduce((sum, e) => sum + e.price, 0)}
+                  $${excursionsData.filter(e => state.booked.has(e.id)).reduce((sum, e) => sum + (e.perUnit ? e.price : e.price * state.priceMultiplier), 0)}
                 </span>
               </div>
               <div class="text-sm text-gray-500 mt-1">
@@ -836,6 +876,185 @@
     function clearSearch() {
       state.searchTerm = "";
       render();
+    }
+
+    function setMultiplier(value) {
+      state.priceMultiplier = value;
+      saveState();
+      render();
+    }
+
+    function exportItinerary() {
+      const booked = excursionsData.filter(e => state.booked.has(e.id)).sort((a, b) => dates.indexOf(a.date) - dates.indexOf(b.date));
+      const favoritesNotBooked = excursionsData.filter(e => state.favorites.has(e.id) && !state.booked.has(e.id)).sort((a, b) => dates.indexOf(a.date) - dates.indexOf(b.date));
+      
+      const bookedTotal = booked.reduce((sum, e) => sum + (e.perUnit ? e.price : e.price * state.priceMultiplier), 0);
+      
+      // Group booked by date
+      const bookedByDate = {};
+      booked.forEach(exc => {
+        if (!bookedByDate[exc.date]) bookedByDate[exc.date] = [];
+        bookedByDate[exc.date].push(exc);
+      });
+
+      // Group favorites by date
+      const favoritesByDate = {};
+      favoritesNotBooked.forEach(exc => {
+        if (!favoritesByDate[exc.date]) favoritesByDate[exc.date] = [];
+        favoritesByDate[exc.date].push(exc);
+      });
+
+      let html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tahiti Cruise Itinerary</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f9ff; color: #1e293b; line-height: 1.5; padding: 20px; }
+    .container { max-width: 800px; margin: 0 auto; }
+    .header { background: linear-gradient(135deg, #2563eb, #0891b2); color: white; padding: 30px; border-radius: 16px; margin-bottom: 24px; text-align: center; }
+    .header h1 { font-size: 28px; margin-bottom: 8px; }
+    .header p { opacity: 0.9; }
+    .summary { background: white; padding: 20px; border-radius: 12px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; text-align: center; }
+    .summary-item { padding: 12px; background: #f8fafc; border-radius: 8px; }
+    .summary-item .label { font-size: 12px; color: #64748b; text-transform: uppercase; }
+    .summary-item .value { font-size: 24px; font-weight: bold; color: #0891b2; }
+    .section { margin-bottom: 32px; }
+    .section-title { font-size: 20px; font-weight: bold; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid #0891b2; display: flex; align-items: center; gap: 8px; }
+    .date-group { margin-bottom: 20px; }
+    .date-header { font-size: 16px; font-weight: 600; color: #2563eb; margin-bottom: 12px; padding: 8px 12px; background: #eff6ff; border-radius: 8px; }
+    .excursion { background: white; padding: 16px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .excursion.booked { border-left: 4px solid #22c55e; }
+    .excursion.favorite { border-left: 4px solid #ec4899; }
+    .exc-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+    .exc-name { font-weight: 600; font-size: 16px; }
+    .exc-price { font-weight: bold; color: #22c55e; font-size: 18px; }
+    .exc-meta { display: flex; gap: 12px; font-size: 13px; color: #64748b; margin-bottom: 8px; flex-wrap: wrap; }
+    .exc-meta span { display: flex; align-items: center; gap: 4px; }
+    .exc-description { font-size: 14px; color: #475569; margin-bottom: 8px; }
+    .exc-notes { font-size: 13px; color: #92400e; background: #fef3c7; padding: 8px 12px; border-radius: 6px; }
+    .exc-link { display: inline-block; margin-top: 8px; font-size: 13px; color: #2563eb; text-decoration: none; }
+    .exc-link:hover { text-decoration: underline; }
+    .backup-note { background: #fdf2f8; border: 1px solid #fbcfe8; padding: 16px; border-radius: 12px; margin-bottom: 16px; }
+    .backup-note p { color: #9d174d; font-size: 14px; }
+    .total-bar { background: linear-gradient(135deg, #22c55e, #16a34a); color: white; padding: 20px; border-radius: 12px; text-align: center; margin-top: 24px; }
+    .total-bar .amount { font-size: 32px; font-weight: bold; }
+    .print-hide { }
+    @media print {
+      body { background: white; padding: 0; }
+      .print-hide { display: none; }
+      .excursion { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🏝️ Tahiti Cruise Itinerary</h1>
+      <p>Le Paul Gauguin · April 25 - May 2, 2026 · French Polynesia</p>
+      <p style="margin-top: 8px; font-size: 14px;">Travelers: ${state.priceMultiplier} ${state.priceMultiplier === 1 ? 'person' : 'people'}</p>
+    </div>
+
+    <div class="summary">
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="label">Booked</div>
+          <div class="value">${booked.length}</div>
+        </div>
+        <div class="summary-item">
+          <div class="label">Backup Options</div>
+          <div class="value">${favoritesNotBooked.length}</div>
+        </div>
+        <div class="summary-item">
+          <div class="label">Total Cost</div>
+          <div class="value">$${bookedTotal}</div>
+        </div>
+      </div>
+    </div>
+
+    ${booked.length > 0 ? `
+    <div class="section">
+      <div class="section-title">✅ Booked Excursions</div>
+      ${Object.entries(bookedByDate).map(([date, excs]) => `
+        <div class="date-group">
+          <div class="date-header">📅 ${date} - ${excs[0].port}</div>
+          ${excs.map(exc => `
+            <div class="excursion booked">
+              <div class="exc-header">
+                <div class="exc-name">${exc.name}</div>
+                <div class="exc-price">$${exc.perUnit ? exc.price : exc.price * state.priceMultiplier}${exc.perUnit ? ` <span style="font-size: 12px; color: #64748b;">per ${exc.unitType}</span>` : ''}</div>
+              </div>
+              <div class="exc-meta">
+                <span>🎫 ${exc.code}</span>
+                <span>⏱️ ${exc.duration}</span>
+                ${exc.minPax ? `<span>👥 Min: ${exc.minPax}</span>` : ''}
+              </div>
+              <div class="exc-description">${exc.description}</div>
+              ${exc.notes ? `<div class="exc-notes">📝 ${exc.notes}</div>` : ''}
+              <a href="${getExcursionLink(exc.code)}" target="_blank" class="exc-link print-hide">View on Paul Gauguin website →</a>
+            </div>
+          `).join('')}
+        </div>
+      `).join('')}
+    </div>
+    ` : '<p style="text-align: center; color: #64748b; padding: 20px;">No excursions booked yet.</p>'}
+
+    ${favoritesNotBooked.length > 0 ? `
+    <div class="section">
+      <div class="section-title">⭐ Backup Options (Favorites)</div>
+      <div class="backup-note">
+        <p>These are your favorite excursions that aren't booked yet. Use these as backup options if your first choices fill up!</p>
+      </div>
+      ${Object.entries(favoritesByDate).map(([date, excs]) => `
+        <div class="date-group">
+          <div class="date-header">📅 ${date} - ${excs[0].port}</div>
+          ${excs.map(exc => `
+            <div class="excursion favorite">
+              <div class="exc-header">
+                <div class="exc-name">${exc.name}</div>
+                <div class="exc-price">$${exc.perUnit ? exc.price : exc.price * state.priceMultiplier}${exc.perUnit ? ` <span style="font-size: 12px; color: #64748b;">per ${exc.unitType}</span>` : ''}</div>
+              </div>
+              <div class="exc-meta">
+                <span>🎫 ${exc.code}</span>
+                <span>⏱️ ${exc.duration}</span>
+              </div>
+              <div class="exc-description">${exc.description}</div>
+              ${exc.notes ? `<div class="exc-notes">📝 ${exc.notes}</div>` : ''}
+              <a href="${getExcursionLink(exc.code)}" target="_blank" class="exc-link print-hide">View on Paul Gauguin website →</a>
+            </div>
+          `).join('')}
+        </div>
+      `).join('')}
+    </div>
+    ` : ''}
+
+    <div class="total-bar">
+      <div style="font-size: 14px; opacity: 0.9;">Total Booked Excursions Cost</div>
+      <div class="amount">$${bookedTotal}</div>
+      <div style="font-size: 14px; opacity: 0.9; margin-top: 4px;">${booked.length} excursion${booked.length !== 1 ? 's' : ''} for ${state.priceMultiplier} ${state.priceMultiplier === 1 ? 'person' : 'people'}</div>
+    </div>
+
+    <p style="text-align: center; margin-top: 24px; font-size: 12px; color: #94a3b8;">
+      Generated on ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+    </p>
+  </div>
+</body>
+</html>`;
+
+      // Create and download the file
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'tahiti-cruise-itinerary.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
 
     function toggleDate(date) {
